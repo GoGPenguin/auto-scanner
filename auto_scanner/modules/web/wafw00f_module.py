@@ -9,20 +9,25 @@ class Wafw00fModule(BaseModule):
     name = "WAFW00F"
 
     def pre_run_check(self, target, profile):
-        """Chỉ chạy nếu Nmap đã tìm thấy cổng web."""
         return bool(target.web_urls)
 
-    def run(self, target, profile, timestamp):
+    # (ĐÃ SỬA)
+    def run(self, target, profile, timestamp, tool_args=None, default_timeout=None):
         print(f"[INFO] Bắt đầu quét WAFW00F trên {len(target.web_urls)} URL(s)...")
         all_findings = []
+        timeout = default_timeout or 120
         
         for url in target.web_urls:
             safe_url_name = url.replace("://", "_").replace(":", "_").replace("/", "")
             output_file = f"{target.project_dir}/wafw00f_scan_{safe_url_name}_{timestamp}.txt"
-            command = ['wafw00f', '-o', output_file, '-f', 'text', url]
+            
+            command = ['wafw00f']
+            if tool_args:
+                command.extend(tool_args.split())
+            command.extend(['-o', output_file, '-f', 'text', url])
             
             try:
-                subprocess.run(command, check=True, capture_output=True, text=True, timeout=120)
+                subprocess.run(command, check=True, capture_output=True, text=True, timeout=timeout)
                 print(f"[INFO] WAFW00F scan hoàn tất cho {url}.")
                 findings = self.parse_wafw00f_txt(output_file)
                 all_findings.extend(findings)

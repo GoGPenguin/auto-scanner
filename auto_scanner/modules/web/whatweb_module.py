@@ -11,22 +11,30 @@ class WhatWebModule(BaseModule):
     name = "WhatWeb"
     
     def pre_run_check(self, target, profile):
-        """Chỉ chạy nếu Nmap đã tìm thấy cổng web."""
         if not target.web_urls:
             return False
         return True
 
-    def run(self, target, profile, timestamp):
+    # (ĐÃ SỬA)
+    def run(self, target, profile, timestamp, tool_args=None, default_timeout=None):
         all_findings = []
         print(f"[INFO] Bắt đầu quét WhatWeb trên {len(target.web_urls)} URL(s)...")
+        timeout = default_timeout or 300
         
         for url in target.web_urls:
             safe_url_name = url.replace("://", "_").replace(":", "_").replace("/", "")
             output_file = f"{target.project_dir}/whatweb_scan_{safe_url_name}_{timestamp}.json"
-            command = ['whatweb', '-a', '3', f'--log-json={output_file}', url]
+            
+            command = ['whatweb']
+            if tool_args:
+                command.extend(tool_args.split())
+            else:
+                command.extend(['-a', '3'])
+            
+            command.extend([f'--log-json={output_file}', url])
             
             try:
-                subprocess.run(command, check=True, capture_output=True, text=True, timeout=300)
+                subprocess.run(command, check=True, capture_output=True, text=True, timeout=timeout)
                 if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
                     print(f"[INFO] WhatWeb scan hoàn tất cho {url}.")
                     findings = self.parse_whatweb_json(output_file)

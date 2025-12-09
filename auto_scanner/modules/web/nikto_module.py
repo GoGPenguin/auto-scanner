@@ -11,21 +11,27 @@ class NiktoModule(BaseModule):
     name = "Nikto"
 
     def pre_run_check(self, target, profile):
-        """Chỉ chạy nếu Nmap đã tìm thấy cổng web."""
         return bool(target.web_urls)
 
-    def run(self, target, profile, timestamp):
+    # (ĐÃ SỬA)
+    def run(self, target, profile, timestamp, tool_args=None, default_timeout=None):
         all_findings = []
         print(f"[INFO] Bắt đầu quét Nikto trên {len(target.web_urls)} URL(s)...")
+        timeout = default_timeout or 1800
         
         for url in target.web_urls:
             print(f"[INFO] Đang quét Nikto trên: {url}...")
             safe_url_name = url.replace("://", "_").replace(":", "_").replace("/", "")
             output_file = f"{target.project_dir}/nikto_scan_{safe_url_name}_{timestamp}.json"
-            command = ['nikto', '-h', url, '-o', output_file, '-Format', 'json']
+            
+            command = ['nikto']
+            if tool_args:
+                command.extend(tool_args.split())
+            
+            command.extend(['-h', url, '-o', output_file, '-Format', 'json'])
             
             try:
-                subprocess.run(command, capture_output=True, text=True, timeout=1800) # 30 phút
+                subprocess.run(command, capture_output=True, text=True, timeout=timeout) 
                 if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
                     print(f"[INFO] Nikto scan hoàn tất cho {url}.")
                     findings = self.parse_nikto_json(output_file)

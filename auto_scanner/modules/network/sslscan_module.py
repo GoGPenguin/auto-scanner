@@ -15,25 +15,30 @@ class SslScanModule(BaseModule):
     name = "SSLScan"
 
     def pre_run_check(self, target, profile):
-        """Chỉ chạy nếu Nmap đã tìm thấy cổng SSL."""
         if not target.ssl_ports:
             return False
-        if not target.ip: # Cần IP để quét
-            print(f"[SKIP] Bỏ qua SSLScan cho {target.target_str} (chưa xác định được IP).")
+        if not target.ip: 
             return False
         return True
 
-    def run(self, target, profile, timestamp):
+    # (ĐÃ SỬA)
+    def run(self, target, profile, timestamp, tool_args=None, default_timeout=None):
         print(f"[INFO] Bắt đầu quét SSLScan trên {len(target.ssl_ports)} cổng SSL...")
         all_findings = []
+        timeout = default_timeout or 300
         
         for port in target.ssl_ports:
             print(f"[INFO] Đang quét SSLScan trên: {target.ip}:{port}...")
             output_file = f"{target.project_dir}/sslscan_{port}_{timestamp}.xml"
-            command = ['sslscan', f"{target.ip}:{port}", f"--xml={output_file}", "--no-colour"]
+            
+            command = ['sslscan']
+            if tool_args:
+                command.extend(tool_args.split())
+            
+            command.extend([f"{target.ip}:{port}", f"--xml={output_file}", "--no-colour"])
             
             try:
-                subprocess.run(command, check=True, capture_output=True, text=True, timeout=300)
+                subprocess.run(command, check=True, capture_output=True, text=True, timeout=timeout)
                 print(f"[INFO] SSLScan hoàn tất. Đã lưu vào: {output_file}")
                 findings = self.parse_sslscan_xml(output_file)
                 all_findings.extend(findings)

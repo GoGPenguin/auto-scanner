@@ -10,25 +10,30 @@ class UniscanModule(BaseModule):
     name = "Uniscan"
 
     def pre_run_check(self, target, profile):
-        """Chỉ chạy nếu là 'detailed' VÀ có cổng web."""
-        if profile != 'detailed':
-            return False
-        if not target.web_urls:
-            return False
+        if profile != 'detailed': return False
+        if not target.web_urls: return False
         return True
 
-    def run(self, target, profile, timestamp):
+    # (ĐÃ SỬA)
+    def run(self, target, profile, timestamp, tool_args=None, default_timeout=None):
         all_findings = []
         print(f"[INFO] Bắt đầu quét Uniscan (chi tiết) trên {len(target.web_urls)} URL(s)...")
+        timeout = default_timeout or 1800
         
         for url in target.web_urls:
             print(f"[INFO] Đang quét Uniscan trên: {url}...")
             safe_url_name = url.replace("://", "_").replace(":", "_").replace("/", "")
             output_file = f"{target.project_dir}/uniscan_scan_{safe_url_name}_{timestamp}.txt"
-            command = ['uniscan', '-u', url, '-qwe', '-o', output_file]
+            
+            command = ['uniscan']
+            if tool_args:
+                command.extend(tool_args.split())
+                command.extend(['-u', url, '-o', output_file])
+            else:
+                command.extend(['-u', url, '-qwe', '-o', output_file])
             
             try:
-                subprocess.run(command, check=True, capture_output=True, text=True, timeout=1800) # 30 phút
+                subprocess.run(command, check=True, capture_output=True, text=True, timeout=timeout) 
                 print(f"[INFO] Uniscan scan hoàn tất cho {url}.")
                 findings = self.parse_uniscan_txt(output_file)
                 all_findings.extend(findings)

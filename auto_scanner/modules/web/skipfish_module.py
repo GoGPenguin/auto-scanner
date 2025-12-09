@@ -11,40 +11,35 @@ class SkipfishModule(BaseModule):
     name = "Skipfish"
 
     def pre_run_check(self, target, profile):
-        """Chỉ chạy nếu Nmap đã tìm thấy cổng web."""
         if not target.web_urls:
             return False
-        
-        # Skipfish tạo ra RẤT NHIỀU file, không nên chạy ở 'fast'
         if profile != 'detailed':
             print(f"[SKIP] Skipfish quá chậm, chỉ chạy ở profile 'detailed'.")
             return False
-        
         return True
 
-    def run(self, target, profile, timestamp):
+    # (ĐÃ SỬA)
+    def run(self, target, profile, timestamp, tool_args=None, default_timeout=None):
         all_findings = []
         print(f"[INFO] Bắt đầu quét Skipfish (chi tiết) trên {len(target.web_urls)} URL(s)...")
+        timeout = default_timeout or 3600
         
         for url in target.web_urls:
             print(f"[INFO] Đang quét Skipfish trên: {url}...")
-            # Skipfish yêu cầu một thư mục output rỗng
             safe_url_name = url.replace("://", "_").replace(":", "_").replace("/", "")
             output_dir = f"{target.project_dir}/skipfish_scan_{safe_url_name}_{timestamp}"
             
-            # Xóa thư mục cũ nếu tồn tại (để skipfish chạy được)
             if os.path.exists(output_dir):
                 shutil.rmtree(output_dir)
             
-            # Lệnh skipfish
-            command = ['skipfish', '-o', output_dir, url]
+            command = ['skipfish']
+            if tool_args:
+                command.extend(tool_args.split())
+            
+            command.extend(['-o', output_dir, url])
             
             try:
-                # Skipfish chạy rất lâu và tương tác
-                subprocess.run(command, capture_output=True, text=True, timeout=3600) # 1 giờ
-                
-                # Chúng ta không parse kết quả HTML của skipfish (quá phức tạp)
-                # Chúng ta chỉ thông báo cho người dùng nơi xem
+                subprocess.run(command, capture_output=True, text=True, timeout=timeout)
                 report_link = f"file://{os.path.abspath(output_dir)}/index.html"
                 findings = [
                     f"Skipfish đã chạy xong cho: {url}",
