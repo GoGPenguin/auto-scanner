@@ -1,72 +1,31 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
 import subprocess
-import os
 import json
+import os
 from ..base_module import BaseModule
 
 class WhatWebModule(BaseModule):
-    
     name = "WhatWeb"
-    
-    def pre_run_check(self, target, profile):
-        if not target.web_urls:
-            return False
-        return True
+    tag = "web"
 
-    # (ĐÃ SỬA)
+    def pre_run_check(self, target, profile): return bool(target.web_urls)
+
     def run(self, target, profile, timestamp, tool_args=None, default_timeout=None):
-        all_findings = []
-        print(f"[INFO] Bắt đầu quét WhatWeb trên {len(target.web_urls)} URL(s)...")
-        timeout = default_timeout or 300
-        
+        all_find = []
         for url in target.web_urls:
-            safe_url_name = url.replace("://", "_").replace(":", "_").replace("/", "")
-            output_file = f"{target.project_dir}/whatweb_scan_{safe_url_name}_{timestamp}.json"
-            
-            command = ['whatweb']
-            if tool_args:
-                command.extend(tool_args.split())
-            else:
-                command.extend(['-a', '3'])
-            
-            command.extend([f'--log-json={output_file}', url])
-            
-            try:
-                subprocess.run(command, check=True, capture_output=True, text=True, timeout=timeout)
-                if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
-                    print(f"[INFO] WhatWeb scan hoàn tất cho {url}.")
-                    findings = self.parse_whatweb_json(output_file)
-                    all_findings.extend(findings)
-                else:
-                    all_findings.append(f"[WARN] WhatWeb chạy nhưng không tạo file output cho {url}.")
-            except Exception as e:
-                all_findings.append(f"[LỖI] WhatWeb chạy thất bại cho {url}. Lỗi: {e}")
-        
-        target.add_result(self.name, all_findings)
+            outfile = f"{target.project_dir}/whatweb_{timestamp}.json"
+            cmd = ['whatweb', f'--log-json={outfile}', '-a', '3', url]
+            if tool_args: cmd.extend(tool_args.split())
 
-    def parse_whatweb_json(self, json_file):
-        findings = []
-        try:
-            with open(json_file, 'r', encoding='utf-8') as f:
-                data_list = json.load(f) 
-                if not isinstance(data_list, list): data_list = [data_list]
-                for data in data_list:
-                    findings.append(f"Kết quả cho: {data.get('target')}")
-                    plugins = data.get('plugins', {})
-                    if not plugins:
-                        findings.append("  [?] Không nhận diện được công nghệ cụ thể.")
-                        continue
-                    for plugin_name, info in plugins.items():
-                        details = []
-                        if 'version' in info: details.append(f"Version: {info['version']}")
-                        if 'string' in info: details.append(f"Info: {info['string']}")
-                        if 'module' in info: details.append(f"Module: {info['module']}")
-                        if details:
-                            findings.append(f"  [+] {plugin_name}: {', '.join(str(d) for d in details)}")
-                        else:
-                            findings.append(f"  [+] {plugin_name}")
-            return findings
-        except Exception as e:
-            return [f"[LỖI] Xảy ra lỗi khi phân tích WhatWeb JSON: {e}"]
+            try:
+                subprocess.run(cmd, timeout=default_timeout or 300, capture_output=True)
+                if os.path.exists(outfile):
+                    with open(outfile) as f:
+                        data = json.load(f)
+                        if isinstance(data, list):
+                            for d in data:
+                                all_find.append(f"Target: {d.get('target')}")
+                                target.add_json_result({"tool": "WhatWeb", "data": d})
+            except Exception as e: all_find.append(f"[ERR] {e}")
+        target.add_result(self.name, all_find)

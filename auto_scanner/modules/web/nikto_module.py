@@ -1,59 +1,37 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
 import subprocess
-import os
 import json
+import os
 from ..base_module import BaseModule
 
 class NiktoModule(BaseModule):
-
     name = "Nikto"
+    tag = "web"
 
     def pre_run_check(self, target, profile):
         return bool(target.web_urls)
 
-    # (ĐÃ SỬA)
     def run(self, target, profile, timestamp, tool_args=None, default_timeout=None):
-        all_findings = []
-        print(f"[INFO] Bắt đầu quét Nikto trên {len(target.web_urls)} URL(s)...")
-        timeout = default_timeout or 1800
-        
+        all_find = []
         for url in target.web_urls:
-            print(f"[INFO] Đang quét Nikto trên: {url}...")
-            safe_url_name = url.replace("://", "_").replace(":", "_").replace("/", "")
-            output_file = f"{target.project_dir}/nikto_scan_{safe_url_name}_{timestamp}.json"
-            
-            command = ['nikto']
-            if tool_args:
-                command.extend(tool_args.split())
-            
-            command.extend(['-h', url, '-o', output_file, '-Format', 'json'])
-            
-            try:
-                subprocess.run(command, capture_output=True, text=True, timeout=timeout) 
-                if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
-                    print(f"[INFO] Nikto scan hoàn tất cho {url}.")
-                    findings = self.parse_nikto_json(output_file)
-                    all_findings.extend(findings)
-                else:
-                    all_findings.append(f"[WARN] Nikto chạy nhưng không tạo file output cho {url}.")
-            except Exception as e:
-                all_findings.append(f"[LỖI] Nikto chạy thất bại cho {url}. Lỗi: {e}")
-        
-        target.add_result(self.name, all_findings)
+            safe = url.replace("/", "")
+            outfile = f"{target.project_dir}/nikto_{safe}_{timestamp}.json"
+            cmd = ['nikto', '-h', url, '-o', outfile, '-Format', 'json']
+            if tool_args: cmd.extend(tool_args.split())
 
-    def parse_nikto_json(self, json_file):
-        findings = []
-        try:
-            with open(json_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                host_info = f"Kết quả cho Host: {data.get('host')} (IP: {data.get('ip')})"
-                findings.append(host_info)
-                findings.append(f"Banner Server: {data.get('banner')}")
-                for item in data.get('vulnerabilities', []):
-                    line = f"  [+] {item.get('method')} {item.get('url')} - {item.get('msg')}"
-                    findings.append(line.strip())
-            return findings
-        except Exception as e:
-            return [f"[LỖI] Xảy ra lỗi khi phân tích Nikto JSON: {e}"]
+            try:
+                subprocess.run(cmd, timeout=default_timeout or 1800, capture_output=True)
+                if os.path.exists(outfile):
+                    with open(outfile) as f:
+                        data = json.load(f)
+                        if 'vulnerabilities' in data:
+                            for v in data['vulnerabilities']:
+                                msg = f"{v.get('method')} {v.get('url')} - {v.get('msg')}"
+                                all_find.append(msg)
+                                target.add_json_result({
+                                    "tool": "Nikto", "url": url, 
+                                    "msg": v.get('msg'), "id": v.get('id')
+                                })
+            except Exception as e: all_find.append(f"[ERR] {url}: {e}")
+        target.add_result(self.name, all_find)

@@ -3,47 +3,43 @@
 
 class Target:
     """
-    Lớp này đại diện cho MỘT mục tiêu quét (IP hoặc Domain).
-    Nó sẽ lưu trữ tất cả thông tin và kết quả cho mục tiêu đó.
+    Lớp đại diện cho mục tiêu quét.
+    (v1.6: Thêm json_results để lưu dữ liệu có cấu trúc cho ELK)
     """
     def __init__(self, target_str):
-        self.target_str = target_str.strip() # IP hoặc domain gốc
-        self.ip = None                 # Sẽ được Nmap cập nhật
-        self.web_urls = []             # Sẽ được Nmap cập nhật (ví dụ: http://ip:80)
-        self.ssl_ports = []            # Sẽ được Nmap cập nhật
-        
+        self.target_str = target_str.strip()
+        self.ip = None
+        self.web_urls = []
+        self.ssl_ports = []
         self.project_dir = "" 
         
-        # Nơi lưu trữ tất cả kết quả (dạng string)
-        # self.results["Nmap"] = ["Cổng 22 mở..."]
-        # self.results["WhatWeb"] = ["Apache/2.4.7..."]
+        # Kết quả dạng văn bản (cho báo cáo .txt)
         self.results = {}
         
-        # (MỚI v1.4) Lưu trữ các đối tượng module đã chạy trên target này
-        # Dùng để lấy 'tag' khi sắp xếp báo cáo
+        # (MỚI v1.6) Kết quả dạng JSON (cho Elasticsearch)
+        self.json_results = [] 
+
         self.executed_modules = {} 
 
     def add_result(self, module_name, findings_list):
-        """
-        Thêm kết quả từ một module (ví dụ: "Nmap") vào mục tiêu.
-        """
         if module_name not in self.results:
             self.results[module_name] = []
-        
         self.results[module_name].extend(findings_list)
+
+    def add_json_result(self, data_dict):
+        """
+        (MỚI v1.6) Thêm một bản ghi JSON vào danh sách.
+        """
+        # Tự động thêm target vào mỗi bản ghi để dễ query
+        if 'target' not in data_dict:
+            data_dict['target'] = self.target_str
+        self.json_results.append(data_dict)
     
     def add_executed_module(self, module_name, module_tag):
-        """
-        Lưu lại tag của module đã chạy để sắp xếp báo cáo.
-        """
         if module_name not in self.executed_modules:
             self.executed_modules[module_name] = module_tag
 
     def get_module_tag_by_name(self, module_name, default_priority=99):
-        """
-        Lấy 'tag' của một module (ví dụ: 'network')
-        để sắp xếp thứ tự trong báo cáo.
-        """
         tag_to_priority = {'recon': 1, 'network': 2, 'web': 3, 'exploit_prep': 4}
         tag = self.executed_modules.get(module_name)
         return tag_to_priority.get(tag, default_priority)
